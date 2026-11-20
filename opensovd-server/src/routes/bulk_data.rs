@@ -41,8 +41,8 @@ use crate::routes::{
 };
 use crate::schema::JsonSchema;
 
-// Maximum allowed size for bulk data uploads (1 GiB).
-const MAX_BULKDATA_BODY_BYTES: usize = 1024 * 1024 * 1024;
+// Maximum allowed body size to read directly into memory (2 MiB)
+const MAX_BULKDATA_BODY_LIMIT: usize = 2 * 1024 * 1024;
 
 pub fn routes() -> Router<Topology> {
     Router::new()
@@ -57,7 +57,7 @@ pub fn routes() -> Router<Topology> {
             "/bulk-data/{category}/{bulk_data_id}",
             get(bulk_data_download).delete(bulk_data_delete),
         )
-        .layer(DefaultBodyLimit::max(MAX_BULKDATA_BODY_BYTES))
+        .layer(DefaultBodyLimit::max(MAX_BULKDATA_BODY_LIMIT))
 }
 
 #[derive(Deserialize)]
@@ -216,13 +216,6 @@ async fn bulk_data_upload(
         .clone()
         .or_else(|| content_disposition.name.clone())
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-    if content_length.0 > MAX_BULKDATA_BODY_BYTES as u64 {
-        return Err(BulkDataError::InvalidRequest(format!(
-            "Content-Length exceeds maximum allowed size of {MAX_BULKDATA_BODY_BYTES} bytes",
-        ))
-        .into());
-    }
 
     if content_type == ContentType::octet_stream() {
         let mut stream = req
